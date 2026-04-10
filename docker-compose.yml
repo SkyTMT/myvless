@@ -1,0 +1,14 @@
+services:
+  3x-ui:
+    image: ghcr.io/mhsanaei/3x-ui:latest
+    container_name: 3x-ui
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=${TZ:-UTC}
+      - XRAY_VMESS_AEAD_FORCED=false
+    volumes:
+      - ./data/db:/etc/x-ui
+      - ./data/cert:/root/cert
+    cap_add:
+      - NET_ADMIN
