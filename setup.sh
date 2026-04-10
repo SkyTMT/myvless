@@ -237,9 +237,6 @@ sleep 15
 log "Configuring panel port and path..."
 apt install -y sqlite3 -qq
 DB="$WORKDIR/data/db/x-ui.db"
-for i in $(seq 1 20); do [[ -f "$DB" ]] && break; sleep 2; done
-sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webPort','${PANEL_PORT}');"
-sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webBasePath','${PANEL_PATH}');"
 
 # Ждём пока контейнер создаст базу
 for i in $(seq 1 20); do
@@ -296,3 +293,41 @@ VLESS:
 EOF
 
 log "Saved to $WORKDIR/server_info.txt"
+
+# =============================================================
+# 12. SSH ключ + отключение входа по паролю
+# =============================================================
+echo ""
+echo -e "${CYAN}============================================================${NC}"
+echo -e "${CYAN}   SSH Key Setup${NC}"
+echo -e "${CYAN}============================================================${NC}"
+echo ""
+echo -e "Вставь содержимое твоего публичного ключа (vless_key.pub)"
+echo -e "Найди его на своём компьютере:"
+echo -e "  Windows: ${YELLOW}type %USERPROFILE%\.ssh\vless_key.pub${NC}"
+echo -e "  Mac/Linux: ${YELLOW}cat ~/.ssh/vless_key.pub${NC}"
+echo ""
+echo -n "Вставь ключ и нажми Enter: "
+read -r PUBKEY
+
+if [[ -z "$PUBKEY" ]]; then
+    warn "Ключ не введён — пропускаем настройку SSH."
+    warn "Вход по паролю остаётся включённым."
+else
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+    echo "$PUBKEY" >> /root/.ssh/authorized_keys
+    chmod 600 /root/.ssh/authorized_keys
+    log "Публичный ключ добавлен в authorized_keys"
+
+    # Отключаем вход по паролю
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sed -i 's/#PasswordAuthentication no/PasswordAuthentication no/' /etc/ssh/sshd_config
+    grep -q "^PubkeyAuthentication" /etc/ssh/sshd_config || echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+    systemctl restart ssh
+    log "Вход по паролю отключён. Используй ключ: vless_key"
+
+    warn "ВАЖНО: Проверь вход по ключу в новой вкладке перед закрытием этой сессии!"
+    echo -e "  ssh -i ~/.ssh/vless_key root@$SERVER_IP"
+fi
