@@ -233,9 +233,24 @@ docker compose up -d
 log "Waiting for panel to start..."
 sleep 15
 
-# Настраиваем порт и путь
-log "Configuring panel..."
-docker exec 3x-ui x-ui setting -port ${PANEL_PORT} -webBasePath ${PANEL_PATH} 2>/dev/null || true
+# Настраиваем порт и путь через SQLite
+log "Configuring panel port and path..."
+apt install -y sqlite3 -qq
+DB="$WORKDIR/data/db/x-ui.db"
+for i in $(seq 1 20); do [[ -f "$DB" ]] && break; sleep 2; done
+sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webPort','${PANEL_PORT}');"
+sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webBasePath','${PANEL_PATH}');"
+
+# Ждём пока контейнер создаст базу
+for i in $(seq 1 20); do
+    [[ -f "$DB" ]] && break
+    sleep 2
+done
+
+sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webPort','${PANEL_PORT}');"
+sqlite3 "$DB" "INSERT OR REPLACE INTO settings (key,value) VALUES ('webBasePath','${PANEL_PATH}');"
+log "Panel configured: port=${PANEL_PORT} path=${PANEL_PATH}"
+
 docker restart 3x-ui
 sleep 5
 
